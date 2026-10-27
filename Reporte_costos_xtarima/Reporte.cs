@@ -655,27 +655,13 @@ namespace Reporte_costos_xtarima
             }
             body += "</table>";
 
-            string str = body;
-            MailMessage message = new MailMessage();
-            message.To.Add("aescamilla@mrlucky.com.mx");
-            message.Subject = "Calculo de fletes";
-            message.SubjectEncoding = Encoding.UTF8;
-            message.Body = str;
-            message.BodyEncoding = Encoding.UTF8;
-            message.IsBodyHtml = true;
-            message.From = new MailAddress("aescamilla@mrlucky.com.mx");
-            SmtpClient smtpClient = new SmtpClient();
-            smtpClient.Credentials = (ICredentialsByHost)new NetworkCredential("aescamilla", "atrejo");
-            smtpClient.Port = 587;
-            smtpClient.EnableSsl = true;
-            smtpClient.Host = "mail1.mrlucky.com.mx";
             try
             {
-                smtpClient.Send(message);
+                GraphMail.Enviar("jgalvan@mrlucky.com.mx", "aescamilla@mrlucky.com.mx", "Calculo de fletes", body);
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Mensaje no enviado");
+                MessageBox.Show("Mensaje no enviado: " + ex.Message);
             }
         }
 

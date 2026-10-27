@@ -361,3 +361,5 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+# Secreto de Graph compilado en el exe
+Reporte_costos_xtarima/GraphSecreto.cs
