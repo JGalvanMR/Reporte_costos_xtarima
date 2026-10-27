@@ -313,7 +313,62 @@ namespace Reporte_costos_xtarima
             }
         }
 
+        bool generando = false;
+        int ultimoPorcentaje = -1;
+
+        // Dibuja el avance solo cuando cambia el porcentaje y libera los recursos GDI; atiende mensajes para que la ventana no quede "No responde"
+        private void MuestraProgreso()
+        {
+            int percent = (int)(((double)progressBar1.Value / (double)progressBar1.Maximum) * 100);
+            if (percent == ultimoPorcentaje)
+                return;
+            ultimoPorcentaje = percent;
+            using (Graphics g = progressBar1.CreateGraphics())
+            using (Font f = new Font("Arial", (float)8.25, FontStyle.Regular))
+                g.DrawString("Generando reporte . . .  " + percent.ToString() + "%", f, Brushes.Black, new PointF(progressBar1.Width / 2 - 60, progressBar1.Height / 2 - 7));
+            Application.DoEvents();
+        }
+
+        // Agrupa las filas por tipo y una columna clave (equivale a tmr1.Select("tipo = x and columna = y") pero sin recorrer toda la tabla cada vez)
+        private Dictionary<string, List<DataRow>> IndexaPorTipo(DataTable tabla, string columna)
+        {
+            Dictionary<string, List<DataRow>> idx = new Dictionary<string, List<DataRow>>(StringComparer.OrdinalIgnoreCase);
+            foreach (DataRow r in tabla.Rows)
+            {
+                string k = r["tipo"].ToString().Trim() + "|" + r[columna].ToString().Trim();
+                List<DataRow> lista;
+                if (!idx.TryGetValue(k, out lista))
+                {
+                    lista = new List<DataRow>();
+                    idx[k] = lista;
+                }
+                lista.Add(r);
+            }
+            return idx;
+        }
+
+        private List<DataRow> Filas(Dictionary<string, List<DataRow>> idx, string tipo, string clave)
+        {
+            List<DataRow> lista;
+            return idx.TryGetValue(tipo.Trim() + "|" + clave.Trim(), out lista) ? lista : new List<DataRow>();
+        }
+
         private void Genera(string Tipo)
+        {
+            if (generando)
+                return;
+            generando = true;
+            try
+            {
+                GeneraReporte(Tipo);
+            }
+            finally
+            {
+                generando = false;
+            }
+        }
+
+        private void GeneraReporte(string Tipo)
         {
             try
             {
@@ -586,6 +641,7 @@ namespace Reporte_costos_xtarima
                 detalle_factura = tmr1.Copy();
 
                 tot = 0; mon = 0;
+                Dictionary<string, List<DataRow>> idxFlete = IndexaPorTipo(tmr1, "flete");
                 progressBar1.Maximum = tmr1.Rows.Count;
                 progressBar1.Visible = true;
                 string mtip = "";
@@ -594,9 +650,7 @@ namespace Reporte_costos_xtarima
                 {
                     //if (fle2 == "30393")
                     //    MessageBox.Show("30393");
-                    int percent = (int)(((double)progressBar1.Value / (double)progressBar1.Maximum) * 100);
-                    progressBar1.CreateGraphics().DrawString("Generando reporte . . .  " + percent.ToString() + "%",
-                        new Font("Arial", (float)8.25, FontStyle.Regular), Brushes.Black, new PointF(progressBar1.Width / 2 - 60, progressBar1.Height / 2 - 7));
+                    MuestraProgreso();
                     fle = tmr1.Rows[i]["flete"].ToString().Trim();
                     if (i == 0)
                     {
@@ -628,7 +682,7 @@ namespace Reporte_costos_xtarima
                             //if (fle2 == "30393")
                             //    MessageBox.Show("30393");
                             mtip = tmr1.Rows[i - 1]["tipo"].ToString().Trim();
-                            foreach (DataRow row in tmr1.Select("tipo = '" + tmr1.Rows[i - 1]["tipo"].ToString().Trim() + "' and flete = '" + fle2 + "'"))
+                            foreach (DataRow row in Filas(idxFlete, tmr1.Rows[i - 1]["tipo"].ToString(), fle2))
                             {
                                 row["cajtot"] = tot.ToString("###,###,###,##0.0000");
                                 row["monto1"] = mon.ToString("###,###,##0.0000");
@@ -662,7 +716,7 @@ namespace Reporte_costos_xtarima
 
                 fle2 = fle;
                 fle = tmr1.Rows[tmr1.Rows.Count - 1]["flete"].ToString().Trim();
-                foreach (DataRow row in tmr1.Select("tipo = '" + tmr1.Rows[tmr1.Rows.Count - 1]["tipo"].ToString().Trim() + "' and flete = '" + fle2 + "'"))
+                foreach (DataRow row in Filas(idxFlete, tmr1.Rows[tmr1.Rows.Count - 1]["tipo"].ToString(), fle2))
                 {
                     row["cajtot"] = tot.ToString("###,###,###,##0.00");
                     row["monto1"] = mon.ToString("###,###,##0.00");
@@ -684,9 +738,7 @@ namespace Reporte_costos_xtarima
                 progressBar1.Update();
                 foreach (DataRow regis in tmr1.Rows)
                 {
-                    int percent = (int)(((double)progressBar1.Value / (double)progressBar1.Maximum) * 100);
-                    progressBar1.CreateGraphics().DrawString("Generando reporte . . .  " + percent.ToString() + "%",
-                        new Font("Arial", (float)8.25, FontStyle.Regular), Brushes.Black, new PointF(progressBar1.Width / 2 - 60, progressBar1.Height / 2 - 7));
+                    MuestraProgreso();
                     regis["cosxcaja"] = (Convert.ToDouble((Convert.ToDouble(regis["monto2"].ToString()) * Convert.ToDouble(regis["unicajas"].ToString())) / Convert.ToDouble(regis["cajtot"].ToString()))).ToString("###,###,##0.0000");
                     regis["impuesto"] = (Convert.ToDouble(Convert.ToDouble(regis["monto1"].ToString()) - Convert.ToDouble(regis["monto2"].ToString()))).ToString("###,###,##0.0000");
 
@@ -703,9 +755,7 @@ namespace Reporte_costos_xtarima
                 tot = 0;
                 for (int i = 0; i < tmr1.Rows.Count; i++)
                 {
-                    int percent = (int)(((double)progressBar1.Value / (double)progressBar1.Maximum) * 100);
-                    progressBar1.CreateGraphics().DrawString("Generando reporte . . .  " + percent.ToString() + "%", new Font("Arial", (float)8.25, FontStyle.Regular), Brushes.Black,
-                        new PointF(progressBar1.Width / 2 - 60, progressBar1.Height / 2 - 7));
+                    MuestraProgreso();
                     fle = tmr1.Rows[i]["flete"].ToString().Trim();
                     if (i != 0)
                     {
@@ -715,7 +765,7 @@ namespace Reporte_costos_xtarima
                             fle = tmr1.Rows[i]["flete"].ToString().Trim();
                             t = Convert.ToDouble(tmr1.Rows[i]["tartot"].ToString().Trim());
 
-                            foreach (DataRow row in tmr1.Select("tipo = '" + tmr1.Rows[i - 1]["tipo"].ToString().Trim() + "' and flete = '" + fle2 + "'"))
+                            foreach (DataRow row in Filas(idxFlete, tmr1.Rows[i - 1]["tipo"].ToString(), fle2))
                             {
                                 row["tartot2"] = tot.ToString("###,###,##0.0000");
                             }
@@ -733,7 +783,7 @@ namespace Reporte_costos_xtarima
 
                 fle2 = fle;
                 fle = tmr1.Rows[tmr1.Rows.Count - 1]["flete"].ToString().Trim();
-                foreach (DataRow row1 in tmr1.Select("tipo = '" + tmr1.Rows[tmr1.Rows.Count - 1]["tipo"].ToString().Trim() + "' and flete = '" + fle2 + "'"))
+                foreach (DataRow row1 in Filas(idxFlete, tmr1.Rows[tmr1.Rows.Count - 1]["tipo"].ToString(), fle2))
                 {
                     row1["tartot2"] = tot.ToString("###,###,##0.0000");
                 }
@@ -749,8 +799,7 @@ namespace Reporte_costos_xtarima
                 //for (int i = 0; i < tmr1.Rows.Count; i++)
                 foreach (DataRow registro in tmr1.Rows)
                 {
-                    int percent = (int)(((double)progressBar1.Value / (double)progressBar1.Maximum) * 100);
-                    progressBar1.CreateGraphics().DrawString("Generando reporte . . .  " + percent.ToString() + "%", new Font("Arial", (float)8.25, FontStyle.Regular), Brushes.Black, new PointF(progressBar1.Width / 2 - 60, progressBar1.Height / 2 - 7));
+                    MuestraProgreso();
                     if (Convert.ToDouble(registro["tartot2"].ToString()) > 0)//tmr1.Rows[i]["tartot2"].ToString()) > 0)
                     {
                         double res = Convert.ToDouble((Convert.ToDouble(registro["monto2"].ToString()) * Convert.ToDouble(registro["tartot"].ToString())) / Convert.ToDouble(registro["tartot2"].ToString()));
@@ -767,14 +816,14 @@ namespace Reporte_costos_xtarima
                 //dv.Sort = "fcn_monedaflete, producto";
                 dv.Sort = "tipo, producto";
                 tmr1 = dv.ToTable();
+                Dictionary<string, List<DataRow>> idxProd = IndexaPorTipo(tmr1, "producto");
 
                 progressBar1.Value = 0;
                 progressBar1.Maximum = tmr1.Rows.Count;
                 progressBar1.Update();
                 for (int i = 0; i < tmr1.Rows.Count; i++)
                 {
-                    int percent = (int)(((double)progressBar1.Value / (double)progressBar1.Maximum) * 100);
-                    progressBar1.CreateGraphics().DrawString("Generando reporte . . .  " + percent.ToString() + "%", new Font("Arial", (float)8.25, FontStyle.Regular), Brushes.Black, new PointF(progressBar1.Width / 2 - 60, progressBar1.Height / 2 - 7));
+                    MuestraProgreso();
                     pro = tmr1.Rows[i]["producto"].ToString().Trim();
                     if (i != 0)
                     {
@@ -787,7 +836,7 @@ namespace Reporte_costos_xtarima
                             t3 = Convert.ToDouble(tmr1.Rows[i]["cosxcaja"].ToString());
                             t4 = Convert.ToDouble(tmr1.Rows[i]["cosxtari"].ToString());
 
-                            foreach (DataRow row in tmr1.Select("tipo = '" + tmr1.Rows[i - 1]["tipo"].ToString().Trim() + "' and producto = '" + pro2 + "'"))
+                            foreach (DataRow row in Filas(idxProd, tmr1.Rows[i - 1]["tipo"].ToString(), pro2))
                             {
                                 row["totcajp"] = caj.ToString("###,###,##0.0000");
                                 row["tottarp"] = tar.ToString("###,###,##0.0000");
@@ -820,7 +869,7 @@ namespace Reporte_costos_xtarima
 
                 pro2 = pro;
                 pro = tmr1.Rows[tmr1.Rows.Count - 1]["producto"].ToString().Trim();
-                foreach (DataRow row in tmr1.Select("tipo = '" + tmr1.Rows[tmr1.Rows.Count - 1]["tipo"].ToString().Trim() + "' and producto = '" + pro2 + "'"))
+                foreach (DataRow row in Filas(idxProd, tmr1.Rows[tmr1.Rows.Count - 1]["tipo"].ToString(), pro2))
                 {
                     row["totcajp"] = caj.ToString("###,###,##0.0000");
                     row["tottarp"] = tar.ToString("###,###,##0.0000");
@@ -865,6 +914,7 @@ namespace Reporte_costos_xtarima
                 //    }
                 //}
 
+                Dictionary<string, DataRow> idxTemp = new Dictionary<string, DataRow>(StringComparer.OrdinalIgnoreCase);
                 progressBar1.Value = 0;
                 progressBar1.Maximum = tmr1.Rows.Count;
                 progressBar1.Update();
@@ -875,13 +925,14 @@ namespace Reporte_costos_xtarima
                  * */
                 for (int i = 0; i < tmr1.Rows.Count; i++)
                 {
-                    int percent = (int)(((double)progressBar1.Value / (double)progressBar1.Maximum) * 100);
-                    progressBar1.CreateGraphics().DrawString("Generando reporte . . .  " + percent.ToString() + "%", new Font("Arial", (float)8.25, FontStyle.Regular), Brushes.Black, new PointF(progressBar1.Width / 2 - 60, progressBar1.Height / 2 - 7));
+                    MuestraProgreso();
                     bool find = false;
                     pro = tmr1.Rows[i]["producto"].ToString().Trim();
                     //if (tmr1.Rows[i]["fcn_monedaflete"].ToString().Trim() == "USD")
                     //    MessageBox.Show("LELGO A USD");
-                    foreach (DataRow reg in temporal.Select("tipo = '" + tmr1.Rows[i]["tipo"].ToString().Trim() + "' and  producto ='" + pro + "'"))
+                    string kTemp = tmr1.Rows[i]["tipo"].ToString().Trim() + "|" + pro;
+                    DataRow regTemp;
+                    foreach (DataRow reg in (idxTemp.TryGetValue(kTemp, out regTemp) ? new DataRow[] { regTemp } : new DataRow[0]))
                     {
                         reg["unicajas"] = Convert.ToDouble(reg["unicajas"].ToString()) + Convert.ToDouble(tmr1.Rows[i]["unicajas"].ToString());
                         reg["tartot"] = Convert.ToDouble(reg["tartot"].ToString()) + Convert.ToDouble(tmr1.Rows[i]["tartot"].ToString());
@@ -913,6 +964,7 @@ namespace Reporte_costos_xtarima
                         fila["tar"] = Convert.ToDouble(tmr1.Rows[i]["costarp"].ToString()) / Convert.ToDouble(tmr1.Rows[i]["totcajp"].ToString());
                         fila["tari"] = Convert.ToDouble(tmr1.Rows[i]["costarp"].ToString()) / Convert.ToDouble(tmr1.Rows[i]["tottarp"].ToString());*/
                         temporal.Rows.Add(fila);
+                        idxTemp[kTemp] = fila;
                     }
                     progressBar1.PerformStep();
                 }
