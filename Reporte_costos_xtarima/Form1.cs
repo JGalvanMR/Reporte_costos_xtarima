@@ -431,9 +431,10 @@ namespace Reporte_costos_xtarima
                         "AND fcn_estatus <> 'C' AND fcn_transporte <> '' " +
                         "GROUP BY fcn_transporte ORDER BY fcn_transporte  ";
                 da = new SqlDataAdapter(query, thisConnection);
-                des = new DataSet();
-                da.Fill(des, "CtaPor");
-                DataTable CtaPor = des.Tables["CtaPor"];
+                // DataSet aparte: no reemplazar "des", ya que contiene tmr1 con sus columnas predefinidas (cajtot, etc.)
+                DataSet desCtaPor = new DataSet();
+                da.Fill(desCtaPor, "CtaPor");
+                DataTable CtaPor = desCtaPor.Tables["CtaPor"];
                 thisConnection.Close();
 
                 if (tmr1.Rows.Count == 0)
